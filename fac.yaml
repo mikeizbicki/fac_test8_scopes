@@ -1,0 +1,63 @@
+# This test case verifies that scopes work as intended:
+# 1. Targets in a scope are prefixed with the scope name (scope1/a.txt).
+# 2. Nested scopes produce paths like scope1/deep/d.txt.
+# 3. Variables defined at scope level flow down to subtargets.
+# 4. Variables defined at subtarget level override scope variables
+#    (and do not shadow the scope's other variables).
+# 5. Nested scopes inherit from all ancestor scopes.
+# 6. Sibling scopes and top-level targets do not share variables.
+# 7. Scope-level dependencies are inherited by every subtarget in
+#    the scope; per Config._configdict_to_targets they are added with
+#    include:false and trigger_rebuild:false.
+#
+# NOTE: _working_directory is also set by scope processing, but it is
+# not consumed anywhere in the codebase (BuildContext.build does not
+# pass a cwd to subprocess_shell), so it is not observable here.
+
+# A top-level target that plays two roles:
+# 1. Verifies that top-level targets do not inherit scope variables.
+# 2. Acts as a dependency of scope1 so that scope-level dependency
+#    inheritance can be observed: building any scope1 target must
+#    also build top.txt.
+"top.txt":
+  cmd: echo "top" > $FAC_PATH
+
+"scope1/":
+  dependencies:
+    - top.txt
+  variables:
+    GREETING: echo "hello"
+    SCOPE_ONLY: echo "scope1"
+  targets:
+    # Uses only variables inherited from the scope.
+    "a.txt":
+      cmd: echo "$GREETING world" > $FAC_PATH
+
+    # Verifies that two distinct scope variables are both visible.
+    "b.txt":
+      cmd: echo "$SCOPE_ONLY $GREETING" > $FAC_PATH
+
+    # Overrides GREETING at the subtarget level. SCOPE_ONLY must
+    # still be inherited from the scope.
+    "c.txt":
+      variables:
+        GREETING: echo "hi"
+      cmd: echo "$GREETING world $SCOPE_ONLY" > $FAC_PATH
+
+    # Nested scope: the final target name is scope1/deep/d.txt.
+    # Variables from both scope1 and deep must be visible here.
+    "deep/":
+      variables:
+        DEEP_VAR: echo "deep"
+      targets:
+        "d.txt":
+          cmd: echo "$SCOPE_ONLY $GREETING $DEEP_VAR" > $FAC_PATH
+
+# Sibling scope that redefines GREETING. Its value must not leak
+# into scope1 (or into top.txt).
+"other/":
+  variables:
+    GREETING: echo "bonjour"
+  targets:
+    "e.txt":
+      cmd: echo "$GREETING" > $FAC_PATH

@@ -1,0 +1,4 @@
+=== ./scope1/b.txt ===
+scope1 hello
+=== ./top.txt ===
+top
