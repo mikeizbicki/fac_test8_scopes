@@ -1,0 +1,4 @@
+*.sw?
+.results
+.fac.log
+.test_output
